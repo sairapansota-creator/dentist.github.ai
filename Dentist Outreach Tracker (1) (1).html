@@ -1,0 +1,407 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Dentist Outreach Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column. Progress summary and name field on top, an "up next" strip, filters, then a queue of clinic cards that each carry their own WhatsApp action and status. */
+:root{
+  --bg:#F2F5F3; --surface:#FFFFFF; --surface2:#E8EEEB; --fg:#15201C; --muted:#586A64; --line:#D3DCD8;
+  --accent:#0D6A56; --accent-fg:#FFFFFF; --accent-soft:#D9EEE7;
+  --c-pending:#8A9A94; --c-sent:#2B6CC4; --c-replied:#1B8049; --c-follow:#A96A10; --c-no:#B1423A;
+  --t-sent:#E1ECFA; --t-replied:#DCF1E4; --t-follow:#F8EBD3; --t-no:#F6E0DD; --t-pending:#E8EEEB;
+  --warn-bg:#FBEFD6; --warn-fg:#6B4508;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1513; --surface:#16201D; --surface2:#1F2C28; --fg:#E5EEEA; --muted:#92A59E; --line:#2A3A35;
+  --accent:#3CC4A0; --accent-fg:#06231B; --accent-soft:#17352D;
+  --c-pending:#6F837C; --c-sent:#6FA6F0; --c-replied:#52C47F; --c-follow:#E0A44A; --c-no:#EC7D73;
+  --t-sent:#1A2B43; --t-replied:#173326; --t-follow:#3A2D14; --t-no:#3C1F1C; --t-pending:#1F2C28;
+  --warn-bg:#3A2D14; --warn-fg:#F1D9A5; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1513; --surface:#16201D; --surface2:#1F2C28; --fg:#E5EEEA; --muted:#92A59E; --line:#2A3A35;
+  --accent:#3CC4A0; --accent-fg:#06231B; --accent-soft:#17352D;
+  --c-pending:#6F837C; --c-sent:#6FA6F0; --c-replied:#52C47F; --c-follow:#E0A44A; --c-no:#EC7D73;
+  --t-sent:#1A2B43; --t-replied:#173326; --t-follow:#3A2D14; --t-no:#3C1F1C; --t-pending:#1F2C28;
+  --warn-bg:#3A2D14; --warn-fg:#F1D9A5; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 56px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:stretch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+.kicker{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.big{display:flex;align-items:baseline;gap:8px;margin-top:6px;flex-wrap:wrap}
+.big b{font-family:var(--f-display);font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.big span{color:var(--muted)}
+.bar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--t-pending);margin-top:14px}
+.bar i{display:block;height:100%;transition:width .25s}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.namebox label{display:block;margin-top:8px;font-weight:600}
+.namebox input{width:100%;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.namebox input.need{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.namebox p{margin:8px 0 0;font-size:13px;color:var(--muted)}
+
+.next{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--accent);color:var(--accent-fg);border-radius:10px;padding:14px 18px}
+.next .k{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;opacity:.85}
+.next h2{font-size:20px;margin-top:2px}
+.next p{margin:2px 0 0;font-size:13px;opacity:.9}
+.next .grp{display:flex;gap:8px;flex-wrap:wrap}
+.next .btn{background:var(--accent-fg);color:var(--accent);border-color:transparent}
+.next .btn.ghost{background:transparent;color:var(--accent-fg);border-color:currentColor}
+
+.tools{display:flex;flex-direction:column;gap:10px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:8px 0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.tools .r1{display:flex;gap:10px;flex-wrap:wrap}
+.tools input[type=search],.tools select{padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-width:0}
+.tools input[type=search]{flex:1 1 200px}
+.tog{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer;user-select:none}
+.tog input{accent-color:var(--accent)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px;font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+.list{display:flex;flex-direction:column;gap:12px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;scroll-margin-top:150px}
+.row.flash{outline:3px solid var(--accent)}
+.row[data-s="replied"]{border-color:var(--c-replied)}
+.row[data-s="no"]{opacity:.72}
+.head{display:flex;gap:12px;align-items:flex-start}
+.idx{font-family:var(--f-mono);font-size:13px;color:var(--muted);padding-top:3px;min-width:22px}
+.who{flex:1;min-width:0}
+.who h3{font-size:18px;overflow-wrap:anywhere}
+.meta{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:4px 0 0;font-size:13px;color:var(--muted)}
+.rate{font-variant-numeric:tabular-nums;padding:1px 8px;border-radius:999px;background:var(--surface2)}
+.rate.low{background:var(--t-follow);color:var(--c-follow);font-weight:600}
+.phone{font-family:var(--f-mono);color:var(--fg);font-size:13px}
+.tag{font-size:12px;padding:1px 8px;border-radius:4px;border:1px solid var(--line)}
+.tag.warn{border-color:var(--c-follow);color:var(--c-follow)}
+.pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;background:var(--t-pending);color:var(--muted)}
+.pill[data-s="sent"]{background:var(--t-sent);color:var(--c-sent)}
+.pill[data-s="replied"]{background:var(--t-replied);color:var(--c-replied)}
+.pill[data-s="follow"]{background:var(--t-follow);color:var(--c-follow)}
+.pill[data-s="no"]{background:var(--t-no);color:var(--c-no)}
+.when{font-size:12px;color:var(--muted);text-align:right;margin-top:2px}
+.dm{margin:0;color:var(--fg);overflow-wrap:anywhere;white-space:pre-wrap;max-width:75ch}
+.dm.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.linkbtn{align-self:flex-start;background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font-size:13px;text-decoration:underline}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:500;text-decoration:none;color:var(--fg)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+.btn[aria-disabled="true"]{opacity:.5;pointer-events:none}
+.seg{display:inline-flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.seg button{padding:8px 11px;border-radius:8px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:13px}
+.seg button[aria-pressed="true"]{color:#fff;border-color:transparent}
+.seg button[data-st="sent"][aria-pressed="true"]{background:var(--c-sent)}
+.seg button[data-st="replied"][aria-pressed="true"]{background:var(--c-replied)}
+.seg button[data-st="follow"][aria-pressed="true"]{background:var(--c-follow)}
+.seg button[data-st="no"][aria-pressed="true"]{background:var(--c-no)}
+.row.opened .seg button[data-st="sent"]:not([aria-pressed="true"]){border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.hint{margin:0;font-size:13px;background:var(--accent-soft);padding:8px 12px;border-radius:8px}
+.note{width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:14px}
+.empty{text-align:center;color:var(--muted);padding:40px 0}
+.foot{font-size:12px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:90vw}
+@media (max-width:720px){
+  .top{grid-template-columns:1fr}
+  .seg{margin-left:0}
+  .big b{font-size:38px}
+}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+
+<div class="wrap">
+  <section class="top">
+    <div class="panel">
+      <div class="kicker">WhatsApp outreach, 30 dentists</div>
+      <div class="big"><b id="cnt">0</b><span id="of">of 30 contacted</span></div>
+      <div class="bar" id="bar" role="img" aria-label="Progress"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="panel namebox">
+      <div class="kicker">Aapka naam</div>
+      <label for="myname">DM mein ye naam lagega</label>
+      <input id="myname" type="text" placeholder="e.g. Ahmed Raza" autocomplete="name">
+      <p id="nameHelp">Naam likhte hi har DM mein [Your Name] ki jagah lag jayega.</p>
+    </div>
+  </section>
+
+  <section class="next" id="next"></section>
+
+  <section class="tools">
+    <div class="r1">
+      <input id="q" type="search" placeholder="Clinic ya city search karein" aria-label="Search">
+      <select id="city" aria-label="City"></select>
+      <label class="tog"><input id="low" type="checkbox"> Under 4 stars only</label>
+    </div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section class="list" id="list" aria-live="polite"></section>
+  <p class="empty" id="empty" hidden>Koi clinic is filter se match nahi karti.</p>
+  <p class="foot" id="store">Progress load ho raha hai...</p>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const CLINICS = [{"id": 1, "name": "Dr saqib dentist", "city": "Chak No. 83-85/10-R", "rating": 1, "reviews": 1, "phone": null, "why": "Under 4 stars, no website", "dm": "Assalam o Alaikum Dr Saqib, I'm [Your Name]. I found your clinic on Google Maps and noticed it has only one review and no phone number or website listed, so patients nearby may have no easy way to reach you. I build simple dental websites and tidy up Google profiles so new patients can find and call you in one tap. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 2, "name": "Dera Dentistry", "city": "Dera Ismail Khan", "rating": 3, "reviews": 2, "phone": "+92 966 733551", "why": "Under 4 stars, no website", "dm": "Assalam o Alaikum team at Dera Dentistry, I'm [Your Name]. When I searched for dentists in Dera Ismail Khan, your clinic showed up with just two reviews and no website, so patients comparing options can't see much about you. I make simple one-page dental websites with services, timings and a WhatsApp booking button. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 3, "name": "Al-Qayyum Dental Clinic", "city": "Sukkur", "rating": 3.4, "reviews": 7, "phone": "+92 71 5623437", "why": "Under 4 stars, no website", "dm": "Assalam o Alaikum Al-Qayyum Dental Clinic, I'm [Your Name]. I noticed your Hill Top Complex clinic in Sukkur has two separate Google listings, which splits your reviews, and neither links to a website. I help clinics merge duplicate listings and launch a simple site with booking, so every patient lands in one place. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 4, "name": "Rasheed Dental Clinic", "city": "Setharja", "rating": 3.5, "reviews": 2, "phone": null, "why": "Under 4 stars, no website", "dm": "Assalam o Alaikum Rasheed Dental Clinic team, I'm [Your Name]. Your Setharja clinic shows on Google Maps with no phone number or website, so a patient who finds you can't call or book. I set up simple dental websites and complete Google profiles so people in your area can reach you instantly. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 5, "name": "Al-Qayyium Dental Clinic (Dr Abdul Basit)", "city": "Sukkur", "rating": 3.7, "reviews": 7, "phone": "+92 71 5623437", "why": "Under 4 stars, no website (likely a duplicate of Al-Qayyum)", "dm": "Assalam o Alaikum Dr Abdul Basit, I'm [Your Name]. I noticed your Sukkur clinic appears as Al-Qayyium on Google Maps with a second listing under a slightly different name at the same address, and no website. That splits your reviews and confuses patients. I can help clean it up and build a simple site with online booking. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 6, "name": "Dental Care Center, Dr. Syed Shaiq Hussain", "city": "Gilgit", "rating": 3.8, "reviews": 8, "phone": "+92 355 5966970", "why": "Under 4 stars, no website", "dm": "Assalam o Alaikum Dr Syed Shaiq Hussain, I'm [Your Name]. Your Gilgit dental clinic has only a handful of Google reviews and no website, so patients searching for a dentist in Gilgit can't see your services or qualifications. I build simple one-page sites for clinics, with your treatments, timings and a WhatsApp booking button. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 7, "name": "Dental Consultants Larkana", "city": "Larkana", "rating": 4.9, "reviews": 174, "phone": "+92 334 3565803", "why": "No website", "dm": "Assalam o Alaikum Dr Bashir and Dr Rashid, I'm [Your Name]. Dental Consultants Larkana has an amazing 4.9 rating across 174 reviews, but your Google listing has no website to send those patients to. I build clean dental websites with your treatments, doctor profiles and online appointment booking, so your reputation turns into more bookings. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 8, "name": "Dr Nadeem's Dental & Orthodontic Clinic", "city": "Larkana", "rating": 5, "reviews": 52, "phone": "+92 336 8315411", "why": "No website", "dm": "Assalam o Alaikum Dr Nadeem, I'm [Your Name]. Your Larkana clinic has a perfect 5.0 from 52 reviews, which is rare, yet there's no website on your Google listing. For a dental and orthodontic practice, a site with before/after cases and booking could turn more of those searches into appointments. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 9, "name": "R Orthodontist & Aesthetic Dental Clinic", "city": "Larkana", "rating": 4.8, "reviews": 56, "phone": "+92 318 3360520", "why": "No website", "dm": "Assalam o Alaikum Dr Almas, I'm [Your Name]. Your orthodontic and aesthetic clinic in Larkana has a 4.8 rating from 56 reviews, but no website on Google. Orthodontic and cosmetic patients love browsing before/after photos before they book. I build elegant sites with a smile gallery and WhatsApp booking. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 10, "name": "Dr Sarwanand", "city": "Larkana", "rating": 5, "reviews": 36, "phone": "+92 332 9023896", "why": "No website", "dm": "Assalam o Alaikum Dr Sarwanand, I'm [Your Name]. You hold a 5.0 rating from 36 reviews in Larkana, but your Google listing has no website. I build simple dental sites with your services, timings and a booking button, so patients who find you on Maps can book without hunting for your number. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 11, "name": "Heer Dental & Orthodontic Clinic", "city": "Sukkur", "rating": 5, "reviews": 30, "phone": "+92 313 0391383", "why": "No website", "dm": "Assalam o Alaikum Heer Dental & Orthodontic team, I'm [Your Name]. Your Sukkur clinic has a 5.0 rating from 30 reviews and no website linked on Google. A clean site showcasing your braces and orthodontic work, with easy booking, could bring in more new patients from searches. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 12, "name": "Dr. Athar's Dental & Orthodontic Clinic", "city": "Sukkur", "rating": 5, "reviews": 15, "phone": "+92 301 3515387", "why": "No website", "dm": "Assalam o Alaikum Dr Athar, I'm [Your Name]. Your dental and orthodontic clinic near Hira Hospital in Sukkur has a 5.0 rating, but there's no website on your Google listing, so new patients can't learn about your treatments. I build simple sites with services, timings and WhatsApp booking. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 13, "name": "Dr. Inqalab Fareed, Green Dental & Implant Centre", "city": "Multan", "rating": 4.9, "reviews": 197, "phone": "+92 305 8884378", "why": "No website", "dm": "Assalam o Alaikum Dr Inqalab Fareed, I'm [Your Name]. Green Dental & Implant Centre in Multan has a 4.9 rating from 197 reviews, but no website on Google. Implant patients research heavily before booking, so a site with your implant cases, pricing guidance and an inquiry form could bring in more high-value consultations. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 14, "name": "Maestro Smiles", "city": "Multan", "rating": 5, "reviews": 156, "phone": "+92 300 2170365", "why": "No website", "dm": "Assalam o Alaikum Maestro Smiles team, I'm [Your Name]. A 5.0 rating from 156 reviews in Multan is outstanding, but your Google listing has no website behind it. I build polished smile-focused sites with a treatment gallery and online booking so that reputation turns into appointments. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 15, "name": "Dr Talha Ashar", "city": "Multan", "rating": 4.9, "reviews": 56, "phone": "+92 333 6262052", "why": "No website", "dm": "Assalam o Alaikum Dr Talha, I'm [Your Name]. You have a 4.9 rating from 56 reviews in Multan, yet no website on your Google listing. I can build you a clean personal-brand site with your treatments, credentials and a booking button, so patients can see who they're booking before they walk in. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 16, "name": "BraceTown Dental Practice", "city": "Multan", "rating": 5, "reviews": 49, "phone": "+92 311 7312131", "why": "No website", "dm": "Assalam o Alaikum BraceTown team, I'm [Your Name]. A 5.0 from 49 reviews in Multan is a great sign, but BraceTown has no website on Google. For a braces-focused practice, a site with treatment options, before/after cases and online consultation booking is a big win. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 17, "name": "Dental House", "city": "Lahore", "rating": 5, "reviews": 152, "phone": "+92 345 4114240", "why": "No website", "dm": "Assalam o Alaikum Dental House team, I'm [Your Name]. Your Lahore clinic has a 5.0 rating from 152 reviews, but Google shows no website. Lahore is a competitive market, and a fast, modern site with your treatments and online booking would help you stand out from clinics ranking above you. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 18, "name": "Cure All Dentistry", "city": "Lahore", "rating": 4.8, "reviews": 197, "phone": "+92 349 0629964", "why": "No website", "dm": "Assalam o Alaikum Cure All Dentistry team, I'm [Your Name]. You have 197 reviews at 4.8 in Lahore, but no website on your Google listing. I build clean dental sites with services, doctor profiles and booking, so patients who trust your reviews can book in seconds instead of calling. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 19, "name": "Broadway Dentistry", "city": "Lahore", "rating": 4.8, "reviews": 30, "phone": "+92 304 5752121", "why": "No website", "dm": "Assalam o Alaikum Broadway Dentistry team, I'm [Your Name]. Your Lahore clinic has a 4.8 rating, but no website on Google and only around 30 reviews, so a good site could help you stand out quickly. I build simple dental websites with online booking and can help you collect more patient reviews too. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 20, "name": "Dent-O-Care (Dr. Aimal Khan)", "city": "Peshawar", "rating": 4.9, "reviews": 354, "phone": "+92 336 3388525", "why": "No website", "dm": "Assalam o Alaikum Dr Aimal Khan, I'm [Your Name]. Dent-O-Care in Peshawar has a 4.9 rating from 354 reviews, one of the strongest I've seen, but there's no website on your Google listing. I build professional dental sites with your treatments, doctor profile and online booking so that reputation works harder for you. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 21, "name": "Yusaf Dental Practice", "city": "Peshawar", "rating": 4.9, "reviews": 184, "phone": null, "why": "No website", "dm": "Assalam o Alaikum Yusaf Dental Practice team, I'm [Your Name]. You have a 4.9 rating from 184 reviews in Peshawar, but your Google listing shows no website or phone number, so happy patients can't easily recommend or reach you. I can set up a simple site and complete your Google profile. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 22, "name": "Dentex by Dr. Imran Tajik", "city": "Peshawar", "rating": 4.9, "reviews": 117, "phone": "+92 91 5704444", "why": "No website", "dm": "Assalam o Alaikum Dr Imran Tajik, I'm [Your Name]. Dentex in Peshawar has a 4.9 rating from 117 reviews, yet no website on Google. I build modern personal-brand sites for dentists, with your expertise, treatments and online booking, so patients find you before the clinic down the road. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 23, "name": "Ahmad Dental Care", "city": "Peshawar", "rating": 4.9, "reviews": 49, "phone": "+92 335 0900652", "why": "No website", "dm": "Assalam o Alaikum Ahmad Dental Care team, I'm [Your Name]. A 4.9 from 49 reviews in Peshawar is great, but your Google listing has no website. I build simple dental sites with services, timings and WhatsApp booking, so more of the people who find you online turn into patients. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 24, "name": "Dr Palwasha Family Dentist", "city": "Peshawar", "rating": 4.9, "reviews": 30, "phone": "+92 333 4622363", "why": "No website", "dm": "Assalam o Alaikum Dr Palwasha, I'm [Your Name]. Your family dental practice in Peshawar has a 4.9 rating, but no website on Google. Many families, and women in particular, like to read about a female dentist before booking. I can build a warm, simple site with your services and an easy booking button. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 25, "name": "Center of Dental Implant & Face Surgery (Dr Sayed Mustafa)", "city": "Wah Cantt", "rating": 4.9, "reviews": 359, "phone": "+92 330 7644000", "why": "No website", "dm": "Assalam o Alaikum Dr Sayed Mustafa, I'm [Your Name]. Your dental implant and face surgery centre in Wah Cantt has an excellent 4.9 from 359 reviews, but no website on your Google listing. Implant and surgical patients research carefully, so a site with procedures, credentials and an inquiry form could bring in more consultations. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 26, "name": "Sab Ka Dentist", "city": "Attock", "rating": 5, "reviews": 119, "phone": "+92 343 5522336", "why": "No website", "dm": "Assalam o Alaikum Sab Ka Dentist team, I'm [Your Name]. I noticed your Wah Cantt branch has a website linked on Google, but the Attock branch, with 5.0 from 119 reviews, doesn't. I can build an Attock page or a multi-branch site so patients in both cities get the same easy booking. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 27, "name": "Dr. Farah Masood Dental Clinic & Implant Center", "city": "Attock", "rating": 4.6, "reviews": 135, "phone": "+92 330 9519048", "why": "No website", "dm": "Assalam o Alaikum Dr Farah Masood, I'm [Your Name]. Your dental and implant centre in Attock has a 4.6 rating from 135 reviews, but no website on Google. I build clean sites for dentists with services, your credentials as a female dentist and online booking, so more patients can choose you with confidence. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 28, "name": "Tanzila Saleem Dental & Maxillo Facial Center", "city": "Layyah", "rating": 4.9, "reviews": 185, "phone": "+92 333 8913677", "why": "No website", "dm": "Assalam o Alaikum Dr Tanzila Saleem, I'm [Your Name]. Your dental and maxillofacial centre in Layyah has a 4.9 rating from 185 reviews, but no website on Google. For specialist care like maxillofacial work, patients look for credentials first, so a professional site with your profile and booking could bring in referrals from nearby towns. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 29, "name": "Rameez Dental Clinic", "city": "Gojra", "rating": 4.9, "reviews": 157, "phone": "+92 332 0073513", "why": "No website", "dm": "Assalam o Alaikum Rameez Dental Clinic team, I'm [Your Name]. You have a 4.9 rating from 157 reviews in Gojra, but no website on your Google listing. I build simple dental sites with treatments, timings and WhatsApp booking, so patients who trust your reviews can book instantly. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}, {"id": 30, "name": "Adeel Medical And Dental Complex", "city": "Toba Tek Singh", "rating": 5, "reviews": 114, "phone": "+92 331 3368478", "why": "No website", "dm": "Assalam o Alaikum Adeel Medical and Dental Complex team, I'm [Your Name]. A 5.0 from 114 reviews in Toba Tek Singh is excellent, but your Google listing has no website. A simple site listing your medical and dental services, doctors and timings, with a booking button, would make it easy for patients to choose you. Happy to send a free sample homepage for your clinic, no obligation. Would that be useful? - [Your Name]"}];
+const ST = [
+  {k:"sent",label:"Sent"},
+  {k:"replied",label:"Replied"},
+  {k:"follow",label:"Follow up"},
+  {k:"no",label:"Not interested"}
+];
+const LABEL = {pending:"Not sent",sent:"Sent",replied:"Replied",follow:"Follow up",no:"Not interested"};
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+let state = {};            // id -> {status, note, sentAt}
+let myName = "";
+let fStatus = "all", fCity = "all", fLow = false, fQ = "";
+let dbApi = null, mode = "pending";
+const LS = "dentist-outreach-v1";
+
+/* ---------- storage ---------- */
+function lsRead(){ try{ return JSON.parse(localStorage.getItem(LS)) || {}; }catch(e){ return {}; } }
+function lsWrite(o){ try{ localStorage.setItem(LS, JSON.stringify(o)); }catch(e){} }
+let resolveReady; const ready = new Promise(r => resolveReady = r);
+
+async function initStorage(){
+  const local = lsRead();
+  state = local.state || {}; myName = local.name || "";
+  $("#myname").value = myName;
+  paintAll();
+  let db = null;
+  try{ db = (window.claude && window.claude.use) ? await window.claude.use("db") : null; }catch(e){ db = null; }
+  if(!db){ mode = "local"; resolveReady(); setStoreNote(); return; }
+  dbApi = db; mode = "db"; resolveReady(); setStoreNote();
+  const timer = setTimeout(()=>{ $("#store").textContent = "Saved data abhi load nahi hua, ho sakta hai purana dikh raha ho."; }, 10000);
+  try{
+    db.collection("outreach").onSnapshot(snap => {
+      const next = {};
+      snap.docs.forEach(d => { const v = d.data() || {}; next[d.id] = {status:v.status||"pending", note:v.note||"", sentAt:v.sentAt||""}; });
+      state = next;
+      if(!snap.metadata.fromCache){ clearTimeout(timer); setStoreNote(); }
+      paintAll();
+    }, () => { clearTimeout(timer); mode = "local"; setStoreNote(); });
+    db.doc("settings/profile").onSnapshot(snap => {
+      const v = snap.exists ? (snap.data()||{}) : {};
+      if(typeof v.name === "string" && v.name !== myName && document.activeElement !== $("#myname")){
+        myName = v.name; $("#myname").value = myName; paintDMs();
+      }
+    });
+  }catch(e){ clearTimeout(timer); mode = "local"; setStoreNote(); }
+}
+function setStoreNote(){
+  $("#store").textContent = mode === "db"
+    ? "Progress is page par save hota hai, jis device se bhi kholein wahi dikhega."
+    : "Progress sirf is browser mein save ho raha hai.";
+}
+const chain = {};
+function persist(id){
+  const s = state[id] || {status:"pending",note:"",sentAt:""};
+  lsWrite({state, name:myName});
+  chain[id] = (chain[id] || Promise.resolve()).then(async () => {
+    await ready;
+    if(mode !== "db" || !dbApi) return;
+    try{ await dbApi.collection("outreach").doc(String(id)).set({status:s.status, note:s.note||"", sentAt:s.sentAt||"", updatedAt:new Date().toISOString()}); }
+    catch(e){ toast("Save nahi hua, dobara try karein."); }
+  });
+}
+let nameTimer;
+function persistName(){
+  lsWrite({state, name:myName});
+  clearTimeout(nameTimer);
+  nameTimer = setTimeout(async () => {
+    await ready;
+    if(mode !== "db" || !dbApi) return;
+    try{ await dbApi.doc("settings/profile").set({name:myName}); }catch(e){}
+  }, 600);
+}
+
+/* ---------- helpers ---------- */
+function get(id){ return state[id] || {status:"pending",note:"",sentAt:""}; }
+function dmFor(c){ return c.dm.split("[Your Name]").join(myName.trim() || "[Your Name]"); }
+function phoneInfo(c){
+  if(!c.phone) return {type:"none"};
+  const digits = c.phone.replace(/\D/g,"");
+  const mobile = /^\+92 3\d\d /.test(c.phone);
+  return {type: mobile ? "mobile" : "landline", digits};
+}
+function waLink(c){
+  const p = phoneInfo(c);
+  if(p.type === "none") return null;
+  return "https://wa.me/" + p.digits + "?text=" + encodeURIComponent(dmFor(c));
+}
+function mapsLink(c){ return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(c.name + " " + c.city + " Pakistan"); }
+function fmt(iso){ if(!iso) return ""; try{ return new Date(iso).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"}); }catch(e){ return ""; } }
+let toastT;
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(()=>{ t.hidden = true; }, 2400); }
+
+/* ---------- build ---------- */
+function buildRows(){
+  const cities = [...new Set(CLINICS.map(c => c.city))].sort();
+  $("#city").innerHTML = '<option value="all">All cities</option>' + cities.map(c => '<option>'+esc(c)+'</option>').join("");
+  $("#list").innerHTML = CLINICS.map(c => {
+    const p = phoneInfo(c);
+    const low = c.rating < 4;
+    const phoneHtml = p.type === "none"
+      ? '<span class="tag warn">Number nahi hai</span>'
+      : '<span class="phone">'+esc(c.phone)+'</span>' + (p.type === "landline" ? '<span class="tag warn" title="WhatsApp landline par shayad na chale">Landline</span>' : '');
+    const open = p.type === "none"
+      ? '<a class="btn" href="'+esc(mapsLink(c))+'" target="_blank" rel="noopener" data-act="maps">Find on Google Maps</a>'
+      : '<a class="btn primary" href="#" target="_blank" rel="noopener" data-act="open">Open WhatsApp</a>';
+    return '<article class="row" id="r'+c.id+'" data-id="'+c.id+'" data-s="pending">' +
+      '<div class="head"><span class="idx">'+String(c.id).padStart(2,"0")+'</span>' +
+      '<div class="who"><h3>'+esc(c.name)+'</h3><p class="meta"><span>'+esc(c.city)+'</span>' +
+      '<span class="rate'+(low?' low':'')+'">★ '+c.rating.toFixed(1)+' · '+c.reviews+' review'+(c.reviews===1?'':'s')+'</span>' + phoneHtml + '</p></div>' +
+      '<div><span class="pill" data-pill data-s="pending">Not sent</span><div class="when" data-when></div></div></div>' +
+      '<p class="dm clamp" data-dm></p>' +
+      '<button class="linkbtn" data-act="toggle" type="button">Poora message dekhein</button>' +
+      '<div class="actions">'+open+
+      '<button class="btn" data-act="copy" type="button">Copy message</button>' +
+      '<div class="seg" role="group" aria-label="Status">' + ST.map(s => '<button type="button" data-st="'+s.k+'" aria-pressed="false">'+s.label+'</button>').join("") + '</div></div>' +
+      '<p class="hint" data-hint hidden>WhatsApp khul gaya? Message bhejne ke baad "Sent" dabayein taake yahan nishan lag jaye.</p>' +
+      '<input class="note" data-note type="text" placeholder="Note (reply, kab dobara message karna hai...)" aria-label="Note">' +
+      '</article>';
+  }).join("");
+}
+
+/* ---------- paint ---------- */
+function paintDMs(){
+  CLINICS.forEach(c => {
+    const row = $("#r"+c.id);
+    row.querySelector("[data-dm]").textContent = dmFor(c);
+    const a = row.querySelector('[data-act="open"]'); if(a) a.href = waLink(c);
+  });
+  const empty = !myName.trim();
+  $("#myname").classList.toggle("need", empty);
+  $("#nameHelp").textContent = empty
+    ? "Pehle apna naam likhein, har DM mein [Your Name] ki jagah lag jayega."
+    : "Naam har DM mein lag gaya hai.";
+  paintNext();
+}
+function paintRow(c){
+  const row = $("#r"+c.id), s = get(c.id);
+  row.dataset.s = s.status;
+  const pill = row.querySelector("[data-pill]"); pill.dataset.s = s.status; pill.textContent = LABEL[s.status];
+  row.querySelector("[data-when]").textContent = s.status !== "pending" && s.sentAt ? "Sent " + fmt(s.sentAt) : "";
+  row.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.st === s.status)));
+  const n = row.querySelector("[data-note]"); if(document.activeElement !== n) n.value = s.note || "";
+  if(s.status !== "pending") row.classList.remove("opened");
+  row.querySelector("[data-hint]").hidden = !(row.classList.contains("opened") && s.status === "pending");
+}
+function counts(){
+  const k = {pending:0,sent:0,replied:0,follow:0,no:0};
+  CLINICS.forEach(c => k[get(c.id).status]++);
+  return k;
+}
+function paintStats(){
+  const k = counts(), total = CLINICS.length, done = total - k.pending;
+  $("#cnt").textContent = done; $("#of").textContent = "of " + total + " contacted";
+  const colors = {sent:"var(--c-sent)",replied:"var(--c-replied)",follow:"var(--c-follow)",no:"var(--c-no)"};
+  $("#bar").innerHTML = ["replied","sent","follow","no"].map(x => '<i style="width:'+(k[x]/total*100)+'%;background:'+colors[x]+'"></i>').join("");
+  $("#bar").setAttribute("aria-label", done+" of "+total+" contacted");
+  $("#legend").innerHTML = ["pending","sent","replied","follow","no"].map(x =>
+    '<span><i class="dot" style="background:'+(colors[x]||"var(--c-pending)")+'"></i>'+LABEL[x]+' '+k[x]+'</span>').join("");
+  const chips = [["all","All",total],["pending","Not sent",k.pending],["sent","Sent",k.sent],["replied","Replied",k.replied],["follow","Follow up",k.follow],["no","Not interested",k.no]];
+  $("#chips").innerHTML = chips.map(c => '<button class="chip" type="button" data-f="'+c[0]+'" aria-pressed="'+(fStatus===c[0])+'">'+c[1]+' '+c[2]+'</button>').join("");
+}
+function paintNext(){
+  const c = CLINICS.find(x => get(x.id).status === "pending" && phoneInfo(x).type !== "none");
+  const el = $("#next");
+  if(!c){ el.innerHTML = '<div><div class="k">Agla clinic</div><h2>Sab numbers par message ja chuka hai</h2><p>Ab replies aur follow up par dhyan dein.</p></div>'; return; }
+  const p = phoneInfo(c);
+  el.innerHTML = '<div><div class="k">Agla clinic</div><h2>'+esc(c.name)+'</h2><p>'+esc(c.city)+' · '+esc(c.phone)+(p.type==="landline"?' · landline':'')+'</p></div>' +
+    '<div class="grp"><a class="btn" href="'+esc(waLink(c))+'" target="_blank" rel="noopener" data-next-open="'+c.id+'">Open WhatsApp</a><button class="btn ghost" type="button" data-jump="'+c.id+'">Row par jayein</button></div>';
+}
+function applyFilter(){
+  let shown = 0;
+  CLINICS.forEach(c => {
+    const s = get(c.id).status;
+    const ok = (fStatus === "all" || s === fStatus) && (fCity === "all" || c.city === fCity) && (!fLow || c.rating < 4) &&
+      (!fQ || (c.name + " " + c.city).toLowerCase().includes(fQ));
+    $("#r"+c.id).hidden = !ok; if(ok) shown++;
+  });
+  $("#empty").hidden = shown > 0;
+}
+function paintAll(){
+  CLINICS.forEach(paintRow); paintDMs(); paintStats(); applyFilter();
+}
+
+/* ---------- actions ---------- */
+function setStatus(id, status){
+  const cur = get(id);
+  const next = cur.status === status ? "pending" : status;
+  state[id] = {status:next, note:cur.note||"", sentAt: next === "pending" ? "" : (cur.sentAt || new Date().toISOString())};
+  persist(id); paintRow(CLINICS.find(c=>c.id===id)); paintStats(); paintNext(); applyFilter();
+}
+async function copyText(text){
+  try{ await navigator.clipboard.writeText(text); return true; }catch(e){}
+  try{
+    const ta = document.createElement("textarea"); ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select(); const ok = document.execCommand("copy"); ta.remove(); return ok;
+  }catch(e){ return false; }
+}
+function markOpened(id){
+  const row = $("#r"+id); row.classList.add("opened"); paintRow(CLINICS.find(c=>c.id===id));
+}
+$("#list").addEventListener("click", async e => {
+  const t = e.target.closest("[data-act],[data-st]"); if(!t) return;
+  const row = t.closest(".row"), id = Number(row.dataset.id), c = CLINICS.find(x => x.id === id);
+  if(t.dataset.st){ setStatus(id, t.dataset.st); return; }
+  if(t.dataset.act === "open"){ markOpened(id); return; }
+  if(t.dataset.act === "toggle"){
+    const dm = row.querySelector("[data-dm]"); const open = dm.classList.toggle("clamp");
+    t.textContent = open ? "Poora message dekhein" : "Chota karein"; return;
+  }
+  if(t.dataset.act === "copy"){
+    const ok = await copyText(dmFor(c));
+    if(ok) toast("Message copy ho gaya");
+    else { const dm = row.querySelector("[data-dm]"); dm.classList.remove("clamp"); const r = document.createRange(); r.selectNodeContents(dm); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Message select ho gaya, ab copy karein"); }
+  }
+});
+const noteT = {};
+$("#list").addEventListener("input", e => {
+  if(!e.target.matches("[data-note]")) return;
+  const id = Number(e.target.closest(".row").dataset.id);
+  clearTimeout(noteT[id]);
+  noteT[id] = setTimeout(() => {
+    const cur = get(id); state[id] = {status:cur.status, note:e.target.value, sentAt:cur.sentAt||""}; persist(id);
+  }, 600);
+});
+$("#list").addEventListener("focusout", e => {
+  if(!e.target.matches("[data-note]")) return;
+  const id = Number(e.target.closest(".row").dataset.id); clearTimeout(noteT[id]);
+  const cur = get(id); if((cur.note||"") !== e.target.value){ state[id] = {status:cur.status, note:e.target.value, sentAt:cur.sentAt||""}; persist(id); }
+});
+$("#next").addEventListener("click", e => {
+  const o = e.target.closest("[data-next-open]"); if(o){ markOpened(Number(o.dataset.nextOpen)); return; }
+  const j = e.target.closest("[data-jump]"); if(j){
+    const row = $("#r"+j.dataset.jump); row.hidden = false; row.scrollIntoView({behavior:"smooth",block:"start"});
+    row.classList.add("flash"); setTimeout(()=>row.classList.remove("flash"), 1400);
+  }
+});
+$("#chips").addEventListener("click", e => { const b = e.target.closest("[data-f]"); if(!b) return; fStatus = b.dataset.f; paintStats(); applyFilter(); });
+$("#q").addEventListener("input", e => { fQ = e.target.value.trim().toLowerCase(); applyFilter(); });
+$("#city").addEventListener("change", e => { fCity = e.target.value; applyFilter(); });
+$("#low").addEventListener("change", e => { fLow = e.target.checked; applyFilter(); });
+$("#myname").addEventListener("input", e => { myName = e.target.value; paintDMs(); persistName(); });
+
+buildRows();
+paintAll();
+initStorage();
+</script>
+
+</body></html>
